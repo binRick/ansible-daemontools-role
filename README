@@ -1,0 +1,7 @@
+Ansible Role to deploy DJB Daemontools to Linux Server
+
+Playbook Usage:
+
+---
+- hosts: all
+  roles: [daemontools]

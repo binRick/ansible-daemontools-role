@@ -1,4 +1,4 @@
-Ansible Role to deploy DJB Daemontools to Linux Server
+Ansible Role to deploy ~~DJB Daemontools~~ Daemontools Encore to Linux Server
 
 Playbook Usage:
 

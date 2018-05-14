@@ -1,0 +1,6 @@
+#!/bin/sh
+export PATH={{BIN_DIR}}:$PATH
+cd {{INSTALL_DIR}} && \
+	./bin/svstat ./service/* 2>&1 | egrep 'unable to open supervise/ok|supervise not running' >/dev/null && \
+	./sbin/daemonize -c {{INSTALL_DIR}} -E \"PATH={{BIN_DIR}}:{{SBIN_DIR}}:$PATH\" \
+		{{BIN_DIR}}/svscan ./service

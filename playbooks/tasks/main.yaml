@@ -1,0 +1,78 @@
+    - name: deploying yum packages
+      yum: name={{item}} state=present
+      with_items: [libselinux-python,gcc,gcc-c++,autoconf]
+
+    - name: "setting source, bin, man directories"
+      set_fact:
+        SOURCE_DIR: /usr/src
+        BIN_DIR: /usr/bin
+        MAN_DIR: /usr/bin
+
+    - name: Creating directories for daemontools
+      file: path={{item}} state=directory
+      with_items: ["{{SOURCE_DIR}}","{{BIN_DIR}}","{{MAN_DIR}}"]
+
+    - name: Untarring Daemontools Source Code
+      unarchive:
+        creates: "{{SOURCE_DIR}}/daemontools-encore-1.10"
+        src: daemontools-encore-1.10.tar.gz
+        dest: "{{SOURCE_DIR}}"
+
+    - name: Deploying conf-bin
+      template:
+        src: conf-bin.j2
+        dest: "{{SOURCE_DIR}}/daemontools-encore-1.10/conf-bin"
+
+    - name: Deploying conf-man
+      template:
+        src: conf-man.j2
+        dest: "{{SOURCE_DIR}}/daemontools-encore-1.10/conf-man"
+
+    - name: Deploying conf-supervise
+      template:
+        src: conf-supervise.j2
+        dest: "{{SOURCE_DIR}}/daemontools-encore-1.10/conf-supervise"
+
+    - name: Running Make Clean
+      when: confSupervise|changed or confBin|changed or confMan|changed
+      shell: chdir={{SOURCE_DIR}}/daemontools-encore-1.10 make clean
+
+    - name: Deploying Daemontools Package
+      shell: creates={{BIN_DIR}}/svscanboot chdir={{SOURCE_DIR}}/daemontools-encore-1.10 make && make install
+
+    - name: Copying daemontools binaries
+      with_items: [envdir,envuidgid,fghack,multilog,pgrphack,readproctitle,setlock,setuidgid,softlimit,supervise,svc,svok,svscan,svscanboot,svstat,svup,tai64nlocal,tai64n]
+      copy: src=daemontools/{{item}} dest={{BIN_DIR}}/{{item}} mode=0755
+      when: daemontoolsCompiled|failed
+
+#  init script
+    - name: Deploying sysv init script to /etc/init.d
+      when: SERVICE_BOOT_METHOD == 'systemv'
+      template:
+        src: sysv-init.j2
+        dest: /etc/init.d/daemontools
+
+    - name: Enabling daemontools Service
+      when: SERVICE_BOOT_METHOD == 'systemv'
+      service: name=daemontools enabled=True
+
+#  CentOS 7 Systemd ssh become root
+    - name: Copying Daemontools systemd service file
+      template: src=daemontools.service.j2 dest=/etc/systemd/system/{{serviceName|default('daemontools')}}.service
+      when: SERVICE_BOOT_METHOD == 'systemd' and ansible_distribution == 'CentOS' and ansible_distribution_major_version == '7'
+
+    - name: Enabling Daemontools Service via systemd
+      when: SERVICE_BOOT_METHOD == 'systemd' and ROOT_ACCESS and ansible_distribution == 'CentOS' and ansible_distribution_major_version == '7'
+      service: name={{serviceName|default('daemontools')}} enabled=True 
+
+#  CentOS 6 svscan (systemd precursor)
+    - copy: src=daemontools.conf dest=/etc/init/{{serviceName|default('daemontools')}}.conf
+      when: SERVICE_BOOT_METHOD == 'systemv' and ansible_distribution == 'CentOS' and ansible_distribution_major_version == '6'
+      register: sv
+    - command: initctl reload-configuration
+      when: SERVICE_BOOT_METHOD == 'systemv' and ansible_distribution == 'CentOS' and ansible_distribution_major_version == '6' and sv.changed
+    - command: initctl start {{serviceName|default('daemontools')}}
+      when: SERVICE_BOOT_METHOD == 'systemv' and ansible_distribution == 'CentOS' and ansible_distribution_major_version == '6' and sv.changed
+
+
+
